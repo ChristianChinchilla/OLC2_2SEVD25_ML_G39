@@ -11,7 +11,7 @@ class StudentGuardModel:
         self.dataset = None
         self.metrics = {}
         
-        # DEFINICIÓN DE COLUMNAS EXACTAS SEGÚN PDF (PÁG 3)
+        #deficion de columnas
         self.required_columns = [
             'promedio_actual', 
             'asistencia_clases', 
@@ -22,15 +22,15 @@ class StudentGuardModel:
             'cursos_reprobados', 
             'actividades_extracurriculares', 
             'reportes_disciplinarios', 
-            'riesgo'  # <--- CAMBIO AQUÍ: Ahora se llama 'riesgo'
+            'riesgo'  
         ]
         
-        # Nombre de la columna objetivo
+        #nombre de la columna objetivo
         self.target_col = 'riesgo'
 
     def load_and_clean_data(self, file_content):
         try:
-            # 1. Cargar CSV detectando separador (coma o punto y coma)
+            #cargar csv 
             try:
                 df = pd.read_csv(file_content)
                 if len(df.columns) < 2: 
@@ -40,18 +40,17 @@ class StudentGuardModel:
                 file_content.seek(0)
                 df = pd.read_csv(file_content, sep=';')
 
-            # 2. Verificar columnas
-            # Verificamos que estén todas las columnas OBLIGATORIAS del PDF
+            #verificar columnas
             missing_cols = [col for col in self.required_columns if col not in df.columns]
             if missing_cols:
                 return {"status": "error", "message": f"El CSV no cumple con el formato PDF. Faltan: {missing_cols}"}
 
-            # 3. TRANSFORMACIÓN DE DATOS (Limpieza)
+            #limpieza
             mapping_participacion = {'alta': 3, 'media': 2, 'baja': 1}
             if df['participacion_clase'].dtype == 'object':
                 df['participacion_clase'] = df['participacion_clase'].str.lower().map(mapping_participacion)
 
-            # 4. Imputación (Llenar vacíos)
+            #llenar vacios
             imputer = SimpleImputer(strategy='mean')
             data_cleaned = pd.DataFrame(imputer.fit_transform(df), columns=df.columns)
             
@@ -68,7 +67,7 @@ class StudentGuardModel:
         if self.dataset is None:
             raise ValueError("No hay datos cargados.")
 
-        # Separar X (Variables) e y (Riesgo/Etiqueta)
+        #separar X variables y riesgo/etiqueta
         X = self.dataset.drop(self.target_col, axis=1)
         y = self.dataset[self.target_col]
 
@@ -94,12 +93,12 @@ class StudentGuardModel:
         return self.metrics
 
     def predict_single(self, student_data: list):
-        # Esta función cumple con la Observación: 
-        # "No es un valor de entrada al momento de realizar las predicciones"
+        
+        
         if self.model is None:
             raise ValueError("El modelo no ha sido entrenado.")
         
-        # Filtramos las columnas para que SOLO sean las variables de entrada (sin 'riesgo')
+        
         features = [col for col in self.required_columns if col != self.target_col]
         
         df_input = pd.DataFrame([student_data], columns=features)
