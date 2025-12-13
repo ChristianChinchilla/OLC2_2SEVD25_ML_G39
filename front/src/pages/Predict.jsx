@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/Card';
+import apiService from '../services/apiService';
 
 export default function Predict() {
   const { canPredict, modelId } = useAppContext();
@@ -29,37 +30,32 @@ export default function Predict() {
     setLoading(true);
     setError(null);
 
-    // Simulación de predicción para desarrollo frontend
-    setTimeout(() => {
-      setPrediction({
-        risk: 'Alto',
-        probability: 0.78,
-        message: 'El estudiante presenta alto riesgo académico. Se recomienda intervención temprana.'
-      });
-      setLoading(false);
-    }, 1500);
-
-    /* Código real para cuando esté el backend
     try {
-      const response = await fetch('http://localhost:5000/api/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          model_id: modelId,
-          data: formData 
-        }),
+      // Convertir valores de string a números
+      const studentData = {
+        promedio_actual: parseFloat(formData.promedio_actual),
+        asistencia_clases: parseFloat(formData.asistencia_clases),
+        tareas_entregadas: parseFloat(formData.tareas_entregadas),
+        participacion_clase: parseInt(formData.participacion_clase),
+        horas_estudio: parseFloat(formData.horas_estudio),
+        promedio_evaluaciones: parseFloat(formData.promedio_evaluaciones),
+        cursos_reprobados: parseInt(formData.cursos_reprobados),
+        actividades_extracurriculares: parseInt(formData.actividades_extracurriculares),
+        reportes_disciplinarios: parseInt(formData.reportes_disciplinarios),
+      };
+
+      const data = await apiService.predictStudent(studentData);
+      
+      setPrediction({
+        risk: data.interpretation,
+        prediction: data.prediction,
+        message: data.interpretation,
       });
-
-      if (!response.ok) throw new Error('Error al realizar predicción');
-
-      const data = await response.json();
-      setPrediction(data);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-    */
   };
 
   const handleClear = () => {
@@ -96,7 +92,8 @@ export default function Predict() {
 
       {!canPredict && (
         <Card style={{ backgroundColor: '#fff3cd', borderLeft: '4px solid #f39c12' }}>
-          <p>ℹ️ Modo de desarrollo frontend. La predicción está simulada hasta que el backend esté disponible.</p>
+          <p>⚠️ El modelo debe estar entrenado con métricas adecuadas antes de realizar predicciones.</p>
+          <p style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>Métricas requeridas: Accuracy &gt; 75%, Precision, Recall y F1 &gt; 70%</p>
         </Card>
       )}
 
@@ -135,13 +132,10 @@ export default function Predict() {
       {prediction && (
         <Card title="Resultado de la Predicción" style={styles.resultCard}>
           <div style={styles.result}>
-            <h2 style={prediction.risk === 'Alto' || prediction.risk === 'Sí' ? styles.riskHigh : styles.riskLow}>
-              Riesgo: {prediction.risk}
+            <h2 style={prediction.risk.includes('Alto') || prediction.risk.includes('Riesgo') ? styles.riskHigh : styles.riskLow}>
+              {prediction.risk}
             </h2>
-            {prediction.probability && (
-              <p><strong>Probabilidad:</strong> {(prediction.probability * 100).toFixed(2)}%</p>
-            )}
-            {prediction.message && <p style={styles.message}>{prediction.message}</p>}
+            <p style={styles.message}>{prediction.message}</p>
           </div>
         </Card>
       )}

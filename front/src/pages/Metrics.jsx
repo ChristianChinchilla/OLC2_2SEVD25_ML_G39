@@ -1,20 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/Card';
+import apiService from '../services/apiService';
 
 export default function Metrics() {
   const { modelId, metrics, setMetrics, checkMetrics } = useAppContext();
   const [loading, setLoading] = useState(false);
 
-  // Métricas de ejemplo para desarrollo frontend
-  const exampleMetrics = {
-    accuracy: 0.85,
-    precision: 0.82,
-    recall: 0.78,
-    f1_score: 0.80,
-  };
-
   useEffect(() => {
+    // Solo intentamos buscar métricas si hay un modelo entrenado (modelId)
+    // y no tenemos las métricas ya cargadas.
     if (modelId && !metrics) {
       fetchMetrics();
     }
@@ -23,35 +18,33 @@ export default function Metrics() {
   const fetchMetrics = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/metrics/${modelId}`);
-      if (!response.ok) throw new Error('Error al obtener métricas');
-      const data = await response.json();
+      const data = await apiService.getMetrics();
       setMetrics(data);
-      checkMetrics(data);
     } catch (err) {
-      console.error(err);
+      console.error('Error al obtener métricas:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Usar métricas de ejemplo si no hay modelo
-  const displayMetrics = metrics || exampleMetrics;
-
   const metricsData = [
-    { label: 'Exactitud (Accuracy)', value: displayMetrics?.accuracy, color: '#3498db', icon: '🎯' },
-    { label: 'Precisión (Precision)', value: displayMetrics?.precision, color: '#e74c3c', icon: '🔍' },
-    { label: 'Recall', value: displayMetrics?.recall, color: '#f39c12', icon: '📈' },
-    { label: 'F1-Score', value: displayMetrics?.f1_score, color: '#27ae60', icon: '⚡' },
+    { label: 'Exactitud (Accuracy)', value: metrics?.accuracy, color: '#3498db', icon: '🎯' },
+    { label: 'Precisión (Precision)', value: metrics?.precision, color: '#e74c3c', icon: '🔍' },
+    { label: 'Recall', value: metrics?.recall, color: '#f39c12', icon: '📈' },
+    { label: 'F1-Score', value: metrics?.f1_score, color: '#27ae60', icon: '⚡' },
   ];
+
+  // Función auxiliar para saber si un valor es válido (no null ni undefined)
+  const isValid = (val) => val !== undefined && val !== null;
 
   return (
     <div style={styles.container}>
       <h1>📊 Evaluación del Modelo</h1>
       
-      {!modelId && (
-        <Card style={{ backgroundColor: '#fff3cd', borderLeft: '4px solid #f39c12' }}>
-          <p>ℹ️ Mostrando métricas de ejemplo para desarrollo. Entrena un modelo para ver métricas reales.</p>
+      {/* Mensaje informativo si no hay modelo entrenado aún */}
+      {!metrics && (
+        <Card style={{ backgroundColor: '#e8f4fd', borderLeft: '4px solid #3498db' }}>
+          <p>ℹ️ Aún no hay métricas disponibles. Ve a la pestaña <strong>Entrenamiento</strong> para generar un modelo.</p>
         </Card>
       )}
 
@@ -62,23 +55,27 @@ export default function Metrics() {
               <span style={styles.icon}>{metric.icon}</span>
               <h3 style={styles.metricLabel}>{metric.label}</h3>
               <p style={{ ...styles.metricValue, color: metric.color }}>
-                {metric.value ? (metric.value * 100).toFixed(2) + '%' : 'N/A'}
+                {/* AQUI ESTÁ EL CAMBIO: Si hay valor, muestra número. Si no, guion */}
+                {isValid(metric.value) ? Number(metric.value).toFixed(2) + '%' : '-'}
               </p>
             </div>
           </Card>
         ))}
       </div>
 
-      <Card title="Estado de Predicción">
-        {checkMetrics(displayMetrics) ? (
-          <p style={styles.success}>✅ El modelo cumple con las métricas deseadas. Predicción habilitada.</p>
-        ) : (
-          <p style={styles.warning}>⚠️ El modelo no cumple con las métricas mínimas. Considera ajustar hiperparámetros.</p>
-        )}
-        <p style={styles.info}>
-          <strong>Requisitos mínimos:</strong> Accuracy &gt; 75%, Precision &gt; 70%, Recall &gt; 70%, F1-Score &gt; 70%
-        </p>
-      </Card>
+      {/* Solo mostramos el estado de predicción si hay métricas reales */}
+      {metrics && (
+        <Card title="Estado de Predicción">
+          {checkMetrics(metrics) ? (
+            <p style={styles.success}>✅ El modelo cumple con las métricas deseadas. Predicción habilitada.</p>
+          ) : (
+            <p style={styles.warning}>⚠️ El modelo no cumple con las métricas mínimas. Considera ajustar hiperparámetros.</p>
+          )}
+          <p style={styles.info}>
+            <strong>Requisitos mínimos:</strong> Accuracy &gt; 75%, Precision &gt; 70%, Recall &gt; 70%, F1-Score &gt; 70%
+          </p>
+        </Card>
+      )}
     </div>
   );
 }

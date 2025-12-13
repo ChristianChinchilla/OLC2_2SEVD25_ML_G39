@@ -9,8 +9,6 @@ export default function Navbar() {
 
   const navItems = [
     { path: '/upload', label: 'Carga Masiva', enabled: true },
-    { path: '/clean', label: 'Limpieza', enabled: true },
-    { path: '/train', label: 'Entrenamiento', enabled: true },
     { path: '/metrics', label: 'Evaluación', enabled: true },
     { path: '/tune', label: 'Ajuste', enabled: true },
     { path: '/predict', label: 'Predicción', enabled: true },

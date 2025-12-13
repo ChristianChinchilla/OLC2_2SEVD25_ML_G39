@@ -1,47 +1,45 @@
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/Card';
+import apiService from '../services/apiService'; // Importamos el servicio
 
 export default function Tune() {
-  const { modelId, datasetId, setModelId, setMetrics, checkMetrics, modelType } = useAppContext();
+  const { isCleaned, setModelId, setMetrics, checkMetrics } = useAppContext();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Hiperparámetros para RandomForest
+  // Hiperparámetros (Coinciden con main.py del backend)
   const [nEstimators, setNEstimators] = useState(100);
   const [maxDepth, setMaxDepth] = useState(10);
-  const [maxLeafNodes, setMaxLeafNodes] = useState(50);
+  const [minSamplesLeaf, setMinSamplesLeaf] = useState(1); // Cambiado para coincidir con backend
 
   const handleRetrain = async () => {
-    if (!modelId || !datasetId) return;
+    // Verificamos si ya se limpiaron los datos antes de permitir entrenar
+    if (!isCleaned) {
+        setError("No hay datos listos. Ve a 'Limpieza' primero.");
+        return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      const hyperparameters = {
+      // Preparamos la configuración tal cual la espera el backend (sin nesting)
+      const config = {
         n_estimators: nEstimators,
         max_depth: maxDepth,
-        max_leaf_nodes: maxLeafNodes,
+        min_samples_leaf: minSamplesLeaf,
       };
 
-      const response = await fetch('http://localhost:5000/api/tune', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          dataset_id: datasetId,
-          model_type: modelType,
-          hyperparameters 
-        }),
-      });
+      // Usamos el servicio centralizado
+      const data = await apiService.trainModel(config);
 
-      if (!response.ok) throw new Error('Error al reentrenar modelo');
-
-      const data = await response.json();
-      setModelId(data.model_id);
+      // Actualizamos el contexto con los nuevos resultados
+      setModelId("modelo_random_forest"); // Simulamos un ID
       setMetrics(data.metrics);
       checkMetrics(data.metrics);
-      alert('✅ Modelo reentrenado exitosamente. Revisa las métricas en "Evaluación".');
+      
+      alert('✅ Modelo reentrenado exitosamente. Ve a la pestaña "Evaluación" para ver los cambios.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -53,26 +51,30 @@ export default function Tune() {
     <div style={styles.container}>
       <h1>⚙️ Ajuste de Hiperparámetros</h1>
 
-      {!modelId && (
+      {!isCleaned && (
         <Card style={{ backgroundColor: '#fff3cd', borderLeft: '4px solid #f39c12' }}>
-          <p>ℹ️ Vista de desarrollo. Entrena un modelo primero para ajustar hiperparámetros reales.</p>
+          <p>⚠️ No hay datos cargados o limpios. Por favor realiza la <strong>Carga Masiva</strong> y <strong>Limpieza</strong> primero.</p>
         </Card>
       )}
 
-      <Card title={`Configuración de ${modelType}`}>
+      <Card title="Configuración de Random Forest">
         <div style={styles.sliderContainer}>
+          
+          {/* SLIDER 1: Cantidad de Árboles */}
           <label style={styles.label}>
             Cantidad de árboles (n_estimators): <strong>{nEstimators}</strong>
             <input
               type="range"
               min="10"
               max="300"
+              step="10"
               value={nEstimators}
               onChange={(e) => setNEstimators(Number(e.target.value))}
               style={styles.slider}
             />
           </label>
 
+          {/* SLIDER 2: Profundidad */}
           <label style={styles.label}>
             Profundidad máxima (max_depth): <strong>{maxDepth}</strong>
             <input
@@ -85,22 +87,31 @@ export default function Tune() {
             />
           </label>
 
+          {/* SLIDER 3: Hojas*/}
           <label style={styles.label}>
-            Máximo de hojas por árbol (max_leaf_nodes): <strong>{maxLeafNodes}</strong>
+            Mínimo de muestras por hoja (min_samples_leaf): <strong>{minSamplesLeaf}</strong>
             <input
               type="range"
-              min="10"
-              max="200"
-              value={maxLeafNodes}
-              onChange={(e) => setMaxLeafNodes(Number(e.target.value))}
+              min="1"
+              max="20"
+              value={minSamplesLeaf}
+              onChange={(e) => setMinSamplesLeaf(Number(e.target.value))}
               style={styles.slider}
             />
           </label>
         </div>
 
-        <button onClick={handleRetrain} disabled={loading} style={styles.button}>
-          {loading ? 'Reentrenando...' : 'Reentrenar Modelo'}
+        <button 
+          onClick={handleRetrain} 
+          disabled={loading || !isCleaned} 
+          style={{
+            ...styles.button,
+            ...((loading || !isCleaned) && styles.buttonDisabled)
+          }}
+        >
+          {loading ? 'Entrenando...' : 'Entrenar / Reentrenar Modelo'}
         </button>
+        
         {error && <p style={styles.error}>❌ {error}</p>}
       </Card>
     </div>
@@ -110,8 +121,23 @@ export default function Tune() {
 const styles = {
   container: { padding: '2rem', maxWidth: '800px', margin: '0 auto' },
   sliderContainer: { marginBottom: '2rem' },
-  label: { display: 'block', marginBottom: '1.5rem', fontWeight: 'bold' },
-  slider: { display: 'block', width: '100%', marginTop: '0.5rem' },
-  button: { padding: '0.75rem 2rem', backgroundColor: '#e67e22', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '1rem' },
-  error: { color: '#e74c3c', marginTop: '1rem' },
+  label: { display: 'block', marginBottom: '1.5rem', fontWeight: 'bold', color: '#2c3e50' },
+  slider: { display: 'block', width: '100%', marginTop: '0.5rem', accentColor: '#e67e22' },
+  button: { 
+    padding: '0.75rem 2rem', 
+    backgroundColor: '#e67e22', 
+    color: 'white', 
+    border: 'none', 
+    borderRadius: '4px', 
+    cursor: 'pointer', 
+    fontSize: '1rem',
+    fontWeight: 'bold',
+    transition: 'opacity 0.3s'
+  },
+  buttonDisabled: {
+    backgroundColor: '#bdc3c7',
+    cursor: 'not-allowed',
+    opacity: 0.7
+  },
+  error: { color: '#e74c3c', marginTop: '1rem', fontWeight: 'bold' },
 };

@@ -1,54 +1,68 @@
 import { useState, useRef } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/Card';
+import apiService from '../services/apiService';
 
 export default function Upload() {
+  // Estados del archivo
   const [file, setFile] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const { setDatasetId, setDatasetInfo, resetFlow } = useAppContext();
   const fileInputRef = useRef(null);
 
+  // Estados de Flujo (Semáforo para habilitar botones)
+  const [isUploaded, setIsUploaded] = useState(false);
+  const [isCleanedLocal, setIsCleanedLocal] = useState(false);
+  const [isTrained, setIsTrained] = useState(false);
+
+  // Estados de UI
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [statusMessage, setStatusMessage] = useState('');
+
+  // Contexto Global
+  const { 
+    setDatasetId, setDatasetInfo, 
+    setIsCleaned, setCleaningResults, 
+    setModelId, setMetrics, checkMetrics 
+  } = useAppContext();
+
+  // --- 1. SELECCIÓN DE ARCHIVO ---
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile && selectedFile.name.endsWith('.csv')) {
       setFile(selectedFile);
       setError(null);
+      // Resetear flujo si cambia el archivo
+      setIsUploaded(false);
+      setIsCleanedLocal(false);
+      setIsTrained(false);
+      setStatusMessage('');
     } else if (selectedFile) {
       setError('Solo se permiten archivos .csv');
       setFile(null);
     }
   };
 
-  const handleButtonClick = () => {
-    fileInputRef.current?.click();
-  };
+  const handleButtonClick = () => fileInputRef.current?.click();
 
+  // --- 2. SUBIR (Backend: Carga Raw) ---
   const handleUpload = async () => {
     if (!file) return;
-
     setLoading(true);
     setError(null);
-    resetFlow();
+    setStatusMessage('Subiendo archivo al servidor...');
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const response = await fetch('http://localhost:5000/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) throw new Error('Error al subir archivo');
-
-      const data = await response.json();
-      setDatasetId(data.dataset_id);
+      const data = await apiService.uploadCSV(file);
+      
+      setDatasetId(file.name);
       setDatasetInfo({
         filename: file.name,
         rows: data.rows,
-        columns: data.columns,
+        message: data.message,
       });
+
+      setIsUploaded(true); // Habilita siguiente paso
+      setStatusMessage('✅ Archivo cargado. Ahora debes limpiarlo.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -56,62 +70,147 @@ export default function Upload() {
     }
   };
 
-  const { datasetInfo } = useAppContext();
+  // --- 3. LIMPIAR (Backend: Clean Data) ---
+  const handleClean = async () => {
+    setLoading(true);
+    setError(null);
+    setStatusMessage('Limpiando y normalizando datos...');
+
+    try {
+      const data = await apiService.cleanData();
+      
+      setCleaningResults(data);
+      setIsCleaned(true); // Actualiza contexto global
+      
+      setIsCleanedLocal(true); // Habilita siguiente paso
+      setStatusMessage('✅ Datos limpios. Listos para entrenamiento.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- 4. ENTRENAR (Backend: Train Model) ---
+  const handleTrain = async () => {
+    setLoading(true);
+    setError(null);
+    setStatusMessage('Entrenando modelo inicial (Random Forest)...');
+
+    try {
+      const data = await apiService.trainModel(); // Sin config = usa defaults
+      
+      setModelId("modelo_base");
+      setMetrics(data.metrics);
+      checkMetrics(data.metrics);
+      
+      setIsTrained(true);
+      setStatusMessage('🚀 Modelo entrenado exitosamente. Ve a "Evaluación" para ver detalles.');
+      alert('¡Entrenamiento completado! Revisa la pestaña de Evaluación.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div style={styles.container}>
-      <h1>📁 Carga Masiva (CSV)</h1>
-
-      <Card title="Subir Dataset">
-        <div style={styles.dropzone}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleFileChange}
-            style={styles.hiddenInput}
-          />
-          <button 
-            type="button"
-            onClick={handleButtonClick} 
-            style={styles.selectButton}
-          >
-            📂 Seleccionar Archivo CSV
-          </button>
-          {file && (
-            <div style={styles.fileInfo}>
-              <p>✅ Archivo seleccionado: <strong>{file.name}</strong></p>
-              <p style={styles.fileSize}>Tamaño: {(file.size / 1024).toFixed(2)} KB</p>
+      <h1>⚙️ Gestión del Modelo</h1>
+      
+      <div style={styles.grid}>
+        
+        {/* COLUMNA IZQUIERDA: CARGA DE ARCHIVO (Diseño anterior) */}
+        <div style={styles.leftCol}>
+          <Card title="1. Carga de Datos">
+            <div style={styles.dropzone}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileChange}
+                style={styles.hiddenInput}
+              />
+              <button 
+                type="button"
+                onClick={handleButtonClick} 
+                style={styles.selectButton}
+              >
+                📂 Seleccionar CSV
+              </button>
+              
+              {file && (
+                <div style={styles.fileInfo}>
+                  <p>📄 <strong>{file.name}</strong></p>
+                  <p style={styles.fileSize}>{(file.size / 1024).toFixed(2)} KB</p>
+                </div>
+              )}
             </div>
-          )}
-          {error && <p style={styles.error}>❌ {error}</p>}
+
+            <button
+              onClick={handleUpload}
+              disabled={!file || loading || isUploaded}
+              style={{
+                ...styles.mainButton,
+                ...((!file || loading || isUploaded) ? styles.buttonDisabled : {})
+              }}
+            >
+              {isUploaded ? 'Cargado ✅' : (loading ? 'Subiendo...' : 'Subir Archivo')}
+            </button>
+          </Card>
         </div>
 
-        <button
-          onClick={handleUpload}
-          disabled={!file || loading}
-          style={{
-            ...styles.button,
-            ...((!file || loading) && styles.buttonDisabled)
-          }}
-        >
-          {loading ? 'Subiendo...' : 'Subir Archivo'}
-        </button>
-      </Card>
+        {/* COLUMNA DERECHA: ACCIONES DEL PROCESO */}
+        <div style={styles.rightCol}>
+          <Card title="2. Procesamiento">
+            <div style={styles.actionContainer}>
+              
+              {/* Botón Limpiar */}
+              <button
+                onClick={handleClean}
+                disabled={!isUploaded || isCleanedLocal || loading}
+                style={{
+                  ...styles.actionButton,
+                  ...(!isUploaded || isCleanedLocal ? styles.buttonDisabled : styles.darkButton)
+                }}
+              >
+                {isCleanedLocal ? 'Datos Limpios ✅' : 'Limpiar Datos'}
+              </button>
 
-      {datasetInfo && (
-        <Card title="Información del Dataset">
-          <p><strong>Archivo:</strong> {datasetInfo.filename}</p>
-          <p><strong>Filas:</strong> {datasetInfo.rows}</p>
-          <p><strong>Columnas:</strong> {datasetInfo.columns}</p>
-        </Card>
-      )}
+              {/* Botón Entrenar */}
+              <button
+                onClick={handleTrain}
+                disabled={!isCleanedLocal || loading}
+                style={{
+                  ...styles.actionButton,
+                  ...(!isCleanedLocal ? styles.buttonDisabled : styles.darkButton)
+                }}
+              >
+                {loading && isCleanedLocal && !isTrained ? 'Entrenando...' : 'Entrenar Modelo'}
+              </button>
+
+              {/* Mensajes de Estado */}
+              <div style={styles.statusBox}>
+                {error && <p style={styles.error}>❌ {error}</p>}
+                {statusMessage && <p style={styles.status}>ℹ️ {statusMessage}</p>}
+              </div>
+
+            </div>
+          </Card>
+        </div>
+
+      </div>
     </div>
   );
 }
 
 const styles = {
-  container: { padding: '2rem', maxWidth: '800px', margin: '0 auto' },
+  container: { padding: '2rem', maxWidth: '1200px', margin: '0 auto' },
+  grid: { display: 'flex', gap: '2rem', flexWrap: 'wrap' },
+  leftCol: { flex: 1, minWidth: '300px' },
+  rightCol: { flex: 1, minWidth: '300px' },
+  
+  // Estilos del Dropzone (Diseño Viejo)
   dropzone: { 
     border: '2px dashed #3498db', 
     padding: '2rem', 
@@ -120,50 +219,49 @@ const styles = {
     marginBottom: '1rem',
     backgroundColor: '#f8f9fa'
   },
-  hiddenInput: { 
-    display: 'none' 
-  },
+  hiddenInput: { display: 'none' },
   selectButton: {
-    padding: '1rem 2rem',
+    padding: '0.8rem 1.5rem',
     backgroundColor: '#3498db',
     color: 'white',
     border: 'none',
     borderRadius: '4px',
     cursor: 'pointer',
-    fontSize: '1.1rem',
     fontWeight: 'bold',
-    transition: 'background-color 0.3s',
   },
-  fileInfo: {
-    marginTop: '1rem',
-    padding: '1rem',
-    backgroundColor: '#d4edda',
-    borderRadius: '4px',
-  },
-  fileSize: {
-    fontSize: '0.9rem',
-    color: '#6c757d',
-    marginTop: '0.5rem',
-  },
-  button: { 
-    padding: '0.75rem 2rem', 
+  fileInfo: { marginTop: '1rem', backgroundColor: '#e8f4fd', padding: '0.5rem', borderRadius: '4px' },
+  fileSize: { fontSize: '0.8rem', color: '#666' },
+
+  // Botón Principal de Subida
+  mainButton: { 
+    width: '100%',
+    padding: '0.75rem', 
     backgroundColor: '#27ae60', 
     color: 'white', 
     border: 'none', 
     borderRadius: '4px', 
     cursor: 'pointer', 
+    fontWeight: 'bold',
+    fontSize: '1rem'
+  },
+
+  // Estilos de Acciones
+  actionContainer: { display: 'flex', flexDirection: 'column', gap: '1rem' },
+  actionButton: {
+    padding: '1rem',
     fontSize: '1rem',
     fontWeight: 'bold',
-    transition: 'background-color 0.3s',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    transition: 'all 0.3s'
   },
-  buttonDisabled: {
-    backgroundColor: '#95a5a6',
-    cursor: 'not-allowed',
-    opacity: 0.6,
-  },
-  error: { 
-    color: '#e74c3c', 
-    marginTop: '1rem',
-    fontWeight: 'bold',
-  },
+  darkButton: { backgroundColor: '#34495e' }, // Gris oscuro estilo PDF
+  buttonDisabled: { backgroundColor: '#bdc3c7', cursor: 'not-allowed', color: '#7f8c8d' },
+
+  // Estado
+  statusBox: { minHeight: '60px', marginTop: '1rem', padding: '0.5rem', borderRadius: '4px', backgroundColor: '#fdfdfd' },
+  error: { color: '#e74c3c', fontWeight: 'bold' },
+  status: { color: '#2980b9', fontWeight: '500' },
 };

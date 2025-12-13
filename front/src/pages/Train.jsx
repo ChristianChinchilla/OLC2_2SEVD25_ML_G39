@@ -1,39 +1,42 @@
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/Card';
+import apiService from '../services/apiService';
 
 export default function Train() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [trainingLog, setTrainingLog] = useState(null);
-  const { datasetId, isCleaned, setModelId, modelType, setModelType, setMetrics, checkMetrics } = useAppContext();
+  const { datasetId, isCleaned, setModelId, setMetrics, checkMetrics } = useAppContext();
+  const [config, setConfig] = useState({
+    n_estimators: 100,
+    max_depth: null,
+    min_samples_leaf: 1,
+  });
 
   const handleTrain = async () => {
-    if (!datasetId || !isCleaned) return;
+    if (!datasetId || !isCleaned) {
+      setError('Debes cargar un dataset antes de entrenar');
+      return;
+    }
 
     setLoading(true);
     setError(null);
     setTrainingLog(null);
+    const startTime = Date.now();
 
     try {
-      const response = await fetch('http://localhost:5000/api/train', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          dataset_id: datasetId, 
-          model_type: modelType 
-        }),
-      });
-
-      if (!response.ok) throw new Error('Error al entrenar modelo');
-
-      const data = await response.json();
-      setModelId(data.model_id);
+      const data = await apiService.trainModel(config);
+      const endTime = Date.now();
+      const trainingTime = ((endTime - startTime) / 1000).toFixed(2);
+      
+      setModelId('trained_model'); // ID del modelo entrenado
       setMetrics(data.metrics);
       checkMetrics(data.metrics);
       setTrainingLog({
-        time: data.training_time,
-        status: data.status,
+        time: trainingTime,
+        status: 'success',
+        message: data.message,
       });
     } catch (err) {
       setError(err.message);
@@ -46,17 +49,50 @@ export default function Train() {
     <div style={styles.container}>
       <h1>🤖 Entrenamiento del Modelo</h1>
 
-      <Card title="Configuración">
+      <Card title="Configuración de Hiperparámetros">
+        {!isCleaned && (
+          <p style={styles.warning}>⚠️ Primero debes cargar un dataset en la página de Carga Masiva</p>
+        )}
+        
         <label style={styles.label}>
-          Selecciona el modelo:
-          <select value={modelType} onChange={(e) => setModelType(e.target.value)} style={styles.select}>
-            <option value="RandomForest">Random Forest</option>
-            <option value="LogisticRegression">Regresión Logística</option>
-            <option value="SVM">Support Vector Machine</option>
-          </select>
+          Número de árboles (n_estimators):
+          <input
+            type="number"
+            value={config.n_estimators}
+            onChange={(e) => setConfig({ ...config, n_estimators: parseInt(e.target.value) })}
+            style={styles.input}
+            min="1"
+            max="500"
+          />
         </label>
 
-        <button onClick={handleTrain} disabled={loading} style={styles.button}>
+        <label style={styles.label}>
+          Profundidad máxima (max_depth):
+          <input
+            type="number"
+            value={config.max_depth || ''}
+            onChange={(e) => setConfig({ ...config, max_depth: e.target.value ? parseInt(e.target.value) : null })}
+            style={styles.input}
+            placeholder="Sin límite"
+            min="1"
+          />
+        </label>
+
+        <label style={styles.label}>
+          Muestras mínimas por hoja (min_samples_leaf):
+          <input
+            type="number"
+            value={config.min_samples_leaf}
+            onChange={(e) => setConfig({ ...config, min_samples_leaf: parseInt(e.target.value) })}
+            style={styles.input}
+            min="1"
+          />
+        </label>
+
+        <button onClick={handleTrain} disabled={loading || !isCleaned} style={{
+          ...styles.button,
+          ...((loading || !isCleaned) && styles.buttonDisabled)
+        }}>
           {loading ? 'Entrenando...' : 'Entrenar Modelo'}
         </button>
         {error && <p style={styles.error}>❌ {error}</p>}
@@ -66,6 +102,7 @@ export default function Train() {
         <Card title="Log de Entrenamiento">
           <p><strong>Estado:</strong> {trainingLog.status}</p>
           <p><strong>Tiempo de entrenamiento:</strong> {trainingLog.time}s</p>
+          {trainingLog.message && <p><strong>Mensaje:</strong> {trainingLog.message}</p>}
           <p style={styles.success}>✅ Modelo entrenado exitosamente</p>
         </Card>
       )}
@@ -76,8 +113,10 @@ export default function Train() {
 const styles = {
   container: { padding: '2rem', maxWidth: '800px', margin: '0 auto' },
   label: { display: 'block', marginBottom: '1rem', fontWeight: 'bold' },
-  select: { display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.5rem', fontSize: '1rem', borderRadius: '4px', border: '1px solid #ddd' },
+  input: { display: 'block', width: '100%', padding: '0.5rem', marginTop: '0.5rem', fontSize: '1rem', borderRadius: '4px', border: '1px solid #ddd' },
   button: { padding: '0.75rem 2rem', backgroundColor: '#9b59b6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '1rem', marginTop: '1rem' },
+  buttonDisabled: { backgroundColor: '#95a5a6', cursor: 'not-allowed', opacity: 0.6 },
   error: { color: '#e74c3c', marginTop: '1rem' },
+  warning: { color: '#f39c12', marginBottom: '1rem', fontWeight: 'bold' },
   success: { color: '#27ae60', fontWeight: 'bold', marginTop: '1rem' },
 };

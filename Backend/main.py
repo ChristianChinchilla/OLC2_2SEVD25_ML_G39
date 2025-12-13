@@ -37,20 +37,21 @@ class StudentData(BaseModel):
 def read_root():
     return {"message": "StudentGuard Backend is running"}
 
-# 1. Carga Masiva (PDF Pag 3)
+# 1. Carga Masiva (Solo sube)
 @app.post("/upload-csv")
 async def upload_dataset(file: UploadFile = File(...)):
-    if not file.filename.endswith('.csv'):
-        raise HTTPException(status_code=400, detail="El archivo debe ser un CSV.")
-    
+    # ... (código de lectura igual) ...
     contents = await file.read()
     file_buffer = io.BytesIO(contents)
-    
-    result = model_engine.load_and_clean_data(file_buffer)
-    
+    # CAMBIO: Llamamos a load_raw_data
+    return model_engine.load_raw_data(file_buffer)
+
+# 2. NUEVO ENDPOINT: Limpieza
+@app.post("/clean-data")
+def clean_dataset():
+    result = model_engine.perform_cleaning()
     if result["status"] == "error":
         raise HTTPException(status_code=400, detail=result["message"])
-    
     return result
 
 #entrenamiento y ajuste de hiperparametros 

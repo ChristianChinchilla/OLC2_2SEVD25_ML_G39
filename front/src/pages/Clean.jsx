@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppContext } from '../context/AppContext';
 import Card from '../components/Card';
+import apiService from '../services/apiService'; // Importamos el servicio real
 
 export default function Clean() {
   const [loading, setLoading] = useState(false);
@@ -8,23 +9,20 @@ export default function Clean() {
   const { datasetId, setIsCleaned, cleaningResults, setCleaningResults } = useAppContext();
 
   const handleClean = async () => {
-    if (!datasetId) return;
+    if (!datasetId) {
+      setError("Primero debes subir un archivo en 'Carga Masiva'.");
+      return;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:5000/api/clean', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataset_id: datasetId }),
-      });
-
-      if (!response.ok) throw new Error('Error al limpiar datos');
-
-      const data = await response.json();
+      // LLAMADA REAL AL BACKEND
+      const data = await apiService.cleanData();
+      
       setCleaningResults(data);
-      setIsCleaned(true);
+      setIsCleaned(true); // Habilita la pestaña de Entrenar
     } catch (err) {
       setError(err.message);
     } finally {
@@ -37,27 +35,19 @@ export default function Clean() {
       <h1>🧹 Limpieza de Datos</h1>
 
       <Card title="Ejecutar Limpieza">
-        <p>Este proceso eliminará valores faltantes, normalizará datos y corregirá inconsistencias.</p>
+        <p>Este proceso enviará la orden al servidor para limpiar los datos crudos cargados previamente.</p>
         <button onClick={handleClean} disabled={loading} style={styles.button}>
-          {loading ? 'Limpiando...' : 'Ejecutar Limpieza'}
+          {loading ? 'Procesando en servidor...' : 'Ejecutar Limpieza Real'}
         </button>
         {error && <p style={styles.error}>❌ {error}</p>}
       </Card>
 
       {cleaningResults && (
-        <Card title="Resultados de Limpieza">
-          <p><strong>Valores faltantes detectados:</strong> {cleaningResults.missing_values || 0}</p>
-          <p><strong>Filas procesadas:</strong> {cleaningResults.rows_processed || 0}</p>
-          <p><strong>Normalizaciones aplicadas:</strong> {cleaningResults.normalizations || 'Ninguna'}</p>
-          {cleaningResults.warnings && (
-            <div style={styles.warnings}>
-              <strong>⚠️ Advertencias:</strong>
-              <ul>
-                {cleaningResults.warnings.map((w, i) => <li key={i}>{w}</li>)}
-              </ul>
-            </div>
-          )}
-          <p style={styles.success}>✅ Limpieza completada exitosamente</p>
+        <Card title="Resultados del Backend">
+          <p><strong>Filas finales:</strong> {cleaningResults.rows_processed}</p>
+          <p><strong>Correcciones:</strong> {cleaningResults.missing_values_fixed}</p>
+          <p><strong>Normalizaciones:</strong> {cleaningResults.normalizations}</p>
+          <p style={styles.success}>✅ {cleaningResults.message}</p>
         </Card>
       )}
     </div>
@@ -69,5 +59,4 @@ const styles = {
   button: { padding: '0.75rem 2rem', backgroundColor: '#27ae60', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '1rem', marginTop: '1rem' },
   error: { color: '#e74c3c', marginTop: '1rem' },
   success: { color: '#27ae60', fontWeight: 'bold', marginTop: '1rem' },
-  warnings: { backgroundColor: '#fff3cd', padding: '1rem', borderRadius: '4px', marginTop: '1rem' },
 };
