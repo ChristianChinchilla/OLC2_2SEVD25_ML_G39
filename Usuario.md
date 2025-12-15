@@ -1,15 +1,11 @@
 # Manual de Usuario - StudentGuard
 
-![Logotipo de StudentGuard]  
-*(Espacio reservado para logotipo)*
 
 **Institución:** Universidad San Carlos de Guatemala  
 **Facultad:** Ingeniería  
 **Carrera:** Ingeniería en Ciencias y Sistemas  
 **Semestre:** Segundo semestre, Escuela de vacaciones de diciembre  
 **Título del Proyecto:** StudentGuard  
-**Ponderación:** 35%  
-**Horas aproximadas:** 30  
 **Versión del Manual:** 1.0  
 **Fecha de Creación:** Diciembre 2023  
 
