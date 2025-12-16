@@ -37,16 +37,14 @@ class StudentData(BaseModel):
 def read_root():
     return {"message": "StudentGuard Backend is running"}
 
-# 1. Carga Masiva (Solo sube)
+#carga Masiva
 @app.post("/upload-csv")
 async def upload_dataset(file: UploadFile = File(...)):
-    # ... (código de lectura igual) ...
     contents = await file.read()
     file_buffer = io.BytesIO(contents)
-    # CAMBIO: Llamamos a load_raw_data
     return model_engine.load_raw_data(file_buffer)
 
-# 2. NUEVO ENDPOINT: Limpieza
+# 2.endpoint limpieza
 @app.post("/clean-data")
 def clean_dataset():
     result = model_engine.perform_cleaning()

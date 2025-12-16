@@ -23,7 +23,7 @@ class StudentGuardModel:
     def load_raw_data(self, file_content):
         """Solo lee el archivo y lo guarda en memoria tal cual viene."""
         try:
-            # Intentar leer con coma o punto y coma
+            #intentar leer con coma o punto y coma
             try:
                 df = pd.read_csv(file_content)
                 if len(df.columns) < 2: 
@@ -52,14 +52,14 @@ class StudentGuardModel:
         try:
             df = self.raw_dataset.copy()
             
-            # 1. FILTRADO DE COLUMNAS
+            #filtrado de columnas
             missing_cols = [col for col in self.required_columns if col not in df.columns]
             if missing_cols:
                 return {"status": "error", "message": f"Faltan columnas: {missing_cols}"}
             
             df = df[self.required_columns].copy()
 
-            # 2. LIMPIEZA DE TEXTO EN NUMÉRICOS
+            #limpiza de numericas
             cols_numericas = [
                 'promedio_actual', 'asistencia_clases', 'tareas_entregadas',
                 'horas_estudio', 'promedio_evaluaciones',
@@ -68,7 +68,7 @@ class StudentGuardModel:
             for col in cols_numericas:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
 
-            # 3. LIMPIEZA DE ACTIVIDADES (Listas)
+            #limpieza de actividades
             def contar_actividades(val):
                 try:
                     if pd.isna(val) or val == "": return 0
@@ -81,19 +81,19 @@ class StudentGuardModel:
                     return 0
             df['actividades_extracurriculares'] = df['actividades_extracurriculares'].apply(contar_actividades)
 
-            # 4. LIMPIEZA DE PARTICIPACIÓN
+            #limpieza de participacion
             map_part = {'alta': 3, 'media': 2, 'baja': 1}
             if df['participacion_clase'].dtype == 'object':
                 df['participacion_clase'] = df['participacion_clase'].astype(str).str.lower().map(map_part)
             df['participacion_clase'] = pd.to_numeric(df['participacion_clase'], errors='coerce')
 
-            # 5. LIMPIEZA DE RIESGO
+            #limpieza de riesgo
             df['riesgo'] = df['riesgo'].astype(str).str.lower().str.strip()
             risk_map = {'riesgo': 1, 'no riesgo': 0, '1': 1, '0': 0, '1.0': 1, '0.0': 0}
             df['riesgo'] = df['riesgo'].map(risk_map)
             df = df.dropna(subset=['riesgo'])
 
-            # 6. IMPUTACIÓN (Llenar vacíos)
+            #llenar vacios
             filas_antes = len(df)
             imputer = SimpleImputer(strategy='mean')
             data_cleaned = pd.DataFrame(imputer.fit_transform(df), columns=df.columns)
