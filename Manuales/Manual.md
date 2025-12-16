@@ -560,9 +560,69 @@ Rastrear cambios en datasets y modelos:
 # Usar DVC (Data Version Control) o similar
 ```
 
-## Conclusiones
+## Diagrama del Flujo del Programa
 
-StudentGuard implementa exitosamente un pipeline completo de aprendizaje automático supervisado para predicción de deserción estudiantil. El sistema demuestra integración efectiva de:
+A continuación, se presenta un diagrama de flujo que ilustra el proceso completo del sistema StudentGuard, desde la carga de datos hasta la predicción. Este diagrama muestra la secuencia de operaciones y las dependencias entre módulos.
+
+```mermaid
+flowchart TD
+    A[Inicio] --> B[Carga de Datos CSV]
+    B --> C[Almacenamiento en raw_dataset]
+    C --> D[Llamada a /clean-data]
+    D --> E[Limpieza y Preprocesamiento]
+    E --> F[Almacenamiento en dataset limpio]
+    F --> G[Llamada a /train-model]
+    G --> H[Entrenamiento del Modelo Random Forest]
+    H --> I[Cálculo de Métricas en Conjunto de Prueba]
+    I --> J[Almacenamiento del Modelo Entrenado]
+    J --> K[Llamada a /predict o /predict-batch]
+    K --> L[Predicción Individual o Masiva]
+    L --> M[Retorno de Resultados]
+    M --> N[Fin]
+
+    subgraph "Backend (Python/FastAPI)"
+        B
+        C
+        D
+        E
+        F
+        G
+        H
+        I
+        J
+        K
+        L
+        M
+    end
+
+    subgraph "Frontend (React)"
+        O[Interfaz de Usuario]
+        O --> P[Carga de Archivo CSV]
+        P --> Q[Visualización de Datos]
+        Q --> R[Ejecución de Limpieza]
+        R --> S[Entrenamiento del Modelo]
+        S --> T[Visualización de Métricas]
+        T --> U[Predicción Individual]
+        U --> V[Visualización de Resultados]
+    end
+
+    O --> B
+    V --> K
+```
+![Descripción de la imagen](./Fotos_front/flujo1.png)
+
+### Descripción del Diagrama
+
+- **Carga de Datos**: El usuario sube un archivo CSV a través del frontend, que se envía al backend vía `/upload-csv`.
+- **Limpieza**: Proceso opcional que transforma `raw_dataset` en `dataset` limpio mediante imputación, conversión de tipos y manejo de inconsistencias.
+- **Entrenamiento**: Requiere datos limpios; entrena el modelo Random Forest y calcula métricas.
+- **Predicción**: Utiliza el modelo entrenado para predicciones individuales o masivas.
+- **Interfaz**: El frontend proporciona una experiencia de usuario para todas las operaciones, conectándose al backend vía API REST.
+
+![Descripción de la imagen](./Fotos_front/flujo2.png)
+Este diagrama resalta la arquitectura cliente-servidor y el flujo secuencial de operaciones, asegurando que cada paso dependa de los anteriores para mantener la integridad del pipeline de ML.
+
+## Conclusiones
 
 1. **Ciencia de datos**: Preprocesamiento robusto maneja heterogeneidad de datos reales académicos mediante tratamiento especializado de inconsistencias en participación, actividades y variables objetivo.
 
